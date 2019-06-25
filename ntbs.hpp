@@ -63,10 +63,12 @@
 
  */
 
-// NTBS_NULL_CHECK Debug switch
+// NTBS_NULL_CHECK Debug switch.
+// Follows NDEBUG by default.
+// Set to 0 to disable checks, 1 to enable checks
 //
-#if not defined NTBS_NULL_CHECK
-#define NTBS_NULL_CHECK not defined (NDEBUG)
+#if not defined (NTBS_NULL_CHECK) and not defined (NDEBUG)
+#define NTBS_NULL_CHECK 1
 #endif
 
 namespace ltl {
