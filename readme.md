@@ -63,7 +63,7 @@ Also at [boost.org](http://www.boost.org/LICENSE_1_0.txt) and accompanying file 
 
 Outputs "**`Hello, world!`**", spliced back together from the sliced words with punctuation.
 
-Note that `cut` indices are signed.   
+Note that `cut` indices are signed.  
 Index -1 is the end index (actually the null-terminator index)  
 so `cut<-7>(hello_world)` is equivalent to `cut<-7,-1>(hello_world)`
 
@@ -81,7 +81,7 @@ Generic access is provided by free-function 'data' and 'size' overloads (found v
 `Char<N>` has implicit conversion to `const char(&)[N]`, so matches a `const char*`  
 function argument as seen in the "Hello, world!" `puts` call above.
 
-### Design notes:
+### Design notes
 
 **Constexpr std::string**, as proposed for C++2a, will likely replace many use cases.
 
@@ -96,5 +96,10 @@ C++2a empowers string_view with more constexpr algorithms.
 having a null terminator is convenient in more use cases.
 * ntbs size is limited by the constexpr loop iteration count limit
 * Compile times increase to seconds for cats  around 256K chars
-* Run-time use cases are constrained by the need for static size,<br>
+* Run-time use cases are constrained by the need for static size,  
  for example 3-char currency-pair stitching "USD"+"CAD" = "USDCAD"
+
+| Linux Travis| Windows Appveyor|
+| :---: | :---: |
+|gcc-9, clang-7<br>-std=c++17|MSVC 19.22.27724 x86<br>/std:c++latest|
+| [![Build Status](https://travis-ci.org/willwray/ntbs.svg?branch=master)](https://travis-ci.org/willwray/ntbs) | [![Build status](https://ci.appveyor.com/api/projects/status/4eu5cp41i2b2dwsj?svg=true)](https://ci.appveyor.com/project/willwray/ntbs) |
