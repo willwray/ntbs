@@ -127,14 +127,13 @@ int main()
     static_assert( sizeof mut == 6);
     mut[5] = '!';
 
-#define NTBS_NULL_CHECK
+#if NTBS_NULL_CHECK
     assert( test_cat_throw() );
     assert( test_cut_throw() );
-
-#undef NTBS_NULL_CHECK
+#else
     assert( ! test_cat_throw() );
     assert( ! test_cut_throw() );
-
+#endif
     {
         static_assert( cat('a','b') == "ab" );
         static_assert( cat('a',"b") == "ab" );

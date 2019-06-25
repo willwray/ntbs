@@ -63,11 +63,11 @@
 
  */
 
-// NTBS_NULL_CHECK Debug macro - if defined then add null checks which
-// throw if any arg is not null-terminated.
-// The throw causes a compile error in constexpr context.
+// NTBS_NULL_CHECK Debug switch
 //
-//#define NTBS_NULL_CHECK
+#if not defined NTBS_NULL_CHECK
+#define NTBS_NULL_CHECK not defined (NDEBUG)
+#endif
 
 namespace ltl {
 
@@ -162,7 +162,7 @@ auto
 cut(A const& a)
 {
     constexpr int32_t N = extent_v<A>;
-#if defined(NTBS_NULL_CHECK)
+#if NTBS_NULL_CHECK
     if constexpr ( sizeof(A) != 1 || N == 1 )
         if ( data(a)[N - 1] != 0 )
             throw "ntbs::cut arg not null-terminated";
@@ -200,7 +200,7 @@ constexpr
 auto
 cat(Cs const&... cs)
 {
-#if defined(NTBS_NULL_CHECK)
+#if NTBS_NULL_CHECK
     ([](char const* dat) {
         if constexpr ( sizeof(Cs) != 1 || extent_v<Cs> == 1 )
             if ( dat[sizeof(Cs) - 1] != 0 )
