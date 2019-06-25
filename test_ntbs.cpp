@@ -142,10 +142,12 @@ int main()
         static_assert( cat("a","b") == "ab" );
     }
     {
-        // Large-array cat, for compile timing
+        // 'Big Cat' for compile timing
+		// (MSVC 19.2 warns that the K64 declaration will use 64K stack
+		//  and the K256 big cat fails)
 
-        constexpr ntbs::array<65536> K64{};
-        constexpr auto K256 = cat(K64, K64, K64, K64); // 1.1s
-        static_assert(size(K256) == 262144 - 3);
+        //constexpr ntbs::array<65536> K64{};
+        //constexpr auto K256 = cat(K64, K64, K64, K64); // 1.1s
+        //static_assert(size(K256) == 262144 - 3);
     }
 }

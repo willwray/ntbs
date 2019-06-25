@@ -20,10 +20,13 @@
 
      namespace ltl::ntbs;
 
-     cat(ntbs_args...);   // Concatenate the ntbs_args
-     cat<s>(ntbs_args...) // Join ntbs_args with separator char s...
-     cut<B>(ntbs_arg);    // Slice range [B,end), a suffix of ntbs_arg
-     cut<B,E>(ntbs_arg);  // Slice range [B,E) of ntbs_arg
+  cat:
+     cat(ntbs_args...);      // Concatenate the ntbs_args
+     cat<s...>(ntbs_args...) // Join ntbs_args with separator chars "s..."
+  cut:
+     cut(ntbs_arg)           // Full range [0,end) return == cat(ntbs_arg)
+     cut<B>(ntbs_arg);       // Slice range [B,end), a suffix of ntbs_arg
+     cut<B,E>(ntbs_arg);     // Slice range [B,E)   (a prefix if B == 0)
 
    Hello-world example:
 
@@ -39,22 +42,22 @@
    Outputs "Hello, world!"
 
    The return value is of an internal character array class type.
-   It is usable as char[N] via implicit conversion to its char array.
-   It is usable as an argument for char* function parameters via
-   implicit conversion to char array then array decay to pointer.
+   A const value is usable as a char[N], e.g. as an NTBS argument for
+   C-style char* function parameters (via implicit conversion).
+   Non-const values have index access (operator[] returning char&).
 
    Input NTBS args can be char[N] or a generic Char<N> class type.
-   Generic access is via free-function 'data' and 'size' overloads
-   plus an 'extent' trait giving the static size:
+   Generic access is via free-function 'data' (const only) and 'size'
+   overloads plus an 'extent' trait also giving the static size:
 
-     data(Char<N>{}) returns a const pointer to the array begin char
-     size(Char<N>{}) returns array size N, including null terminator
-     extent<Char<N>> also gives array size N as an integral_constant.
+     data(Char<N>{}) Returns const access to the array begin char & on.
+     size(Char<N>{}) Returns array size N, including null terminator.
+     extent<Char<N>> Also gives array size N as an integral_constant.
 
    Char<N> generalizes string-literal and constexpr char[N] NTBS.
 
    'Static size' means that size is encoded in the type.
-   The purpose of this lib is to auto-deduce and track the size.
+   This lib auto-deduces and tracks sizes - that's its raison d'etre.
    The proposed C++20 constexpr std::string will replace many uses
    of these 'sized' ntbs utilites with its 'size-erased' container.
 
@@ -70,16 +73,18 @@ namespace ltl {
 
 namespace ntbs {
 
-// Generic interface for array type A:
-//  * data(A) function returning char* or char(&)[N]
+// Generic interface for array type A (for const data access only):
+//  * data(A) function returning 'char const*' or 'char const (&)[N]'
 //  * size(A) function returning array size N
 //  * extent<A> trait for array size N
 
+// extent<T> base trait - specialize for T by deriving from integral_constant.
+//
 template <typename A>
 struct extent;
 
 template <typename A>
-inline constexpr int32_t extent_v{extent<A>()};
+inline constexpr int32_t extent_v{ extent<A>::value };
 
 // char[N] extent, data and size
 // Free function data(char[N]) and size(char[N]) overloads for char arrays.
@@ -87,10 +92,12 @@ inline constexpr int32_t extent_v{extent<A>()};
 //
 template <int32_t N>
 struct extent<char[N]> : std::integral_constant<int32_t,N> {};
+//
 template <int32_t N>
 constexpr auto const& data(char const(&a)[N]) noexcept { return a; }
+//
 template <int32_t N>
-constexpr int32_t size(char const(&)[N]) noexcept { return extent_v<char[N]>; }
+constexpr int32_t size(char const(&)[N]) noexcept { return N; }
 
 // ntbs::array<N>: char array class intended for null-terminated char strings.
 // Implicit conversion to char array (ref) and so full decay-to-pointer char*.
@@ -99,8 +106,9 @@ template <int32_t N>
 struct array
 {
     char data[N];
-    constexpr operator decltype(data)&() noexcept { return data; }
-    constexpr operator decltype(data) const&() const noexcept { return data; }
+    using data_t = char[N];
+    constexpr char& operator[](int32_t i) noexcept { return data[i]; }
+    constexpr operator data_t const&() const noexcept { return data; }
 };
 
 template <int32_t N>
@@ -159,15 +167,15 @@ cut(A const& a)
         if ( data(a)[N - 1] != 0 )
             throw "ntbs::cut arg not null-terminated";
 #endif
-    constexpr auto ind = [](int32_t i) -> int32_t {
+    constexpr auto ind = [](int32_t i, int32_t N) -> int32_t {
         return i < 0 ? N + i : i;
     };
-    constexpr int32_t b = ind(B), e = ind(E);
+    constexpr int32_t b = ind(B,N), e = ind(E,N);
     static_assert( 0 <= b && b <= e && e <= N,
                    "index out of bounds");
     constexpr int32_t M = e - b;
     array<M + 1> chars{};
-    copy_n( data(a) + b, M, chars);
+    copy_n( data(a) + b, M, chars.data);
     return chars;
 }
 
@@ -177,8 +185,10 @@ cut(A const& a)
 //
 template <>
 struct extent<char> : std::integral_constant<int32_t,2> {};
+//
 constexpr char const* data(char const& c) noexcept { return &c; }
-constexpr int32_t size(char const&) noexcept { return extent_v<char>; }
+//
+constexpr int32_t size(char const&) noexcept { return 2; }
 
 // cat(cs...) Concatenate input character sequences, char or ntbs, or
 // join the inputs using variadic char template args act as separator.
@@ -197,11 +207,12 @@ cat(Cs const&... cs)
                 throw "ntbs::cut arg not null-terminated";
     }(data(cs)), ...);
 #endif
-    array<((extent_v<Cs> + sizeof...(sep) - 1) + ...
-                        +(-sizeof...(sep) + 1))> acc{};
-    char* p = acc;
-    (( p = p == acc ? p : (((*p++ = sep), ...), p),
-       p =  copy_n(data(cs), extent_v<Cs>-1, p)), ...);
+    constexpr int32_t seps{ sizeof...(sep) };
+    array<((extent_v<Cs> -1 + seps) + ...
+                       + (1 - seps))> acc{};
+    char* p = acc.data;
+    ((p = p == acc.data ? p : (((*p++ = sep), ...), p),
+        p = copy_n(data(cs), extent_v<Cs>-1, p)), ...);
     return acc;
 }
 
