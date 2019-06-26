@@ -76,7 +76,6 @@ Generic access is provided by free-function 'data' and 'size' overloads (found v
 
 * `data(Char<N>{})` returns a `char*` pointing to the array `begin` and
 * `size(Char<N>{})` returns `N`, the array size including null terminator  
-(type trait `ltl::ntbs::extent<Char<N>>` also gives the static size).
 
 `Char<N>` has implicit conversion to `const char(&)[N]`, so matches a `const char*`  
 function argument as seen in the "Hello, world!" `puts` call above.
@@ -101,5 +100,5 @@ having a null terminator is convenient in more use cases.
 
 | Linux Travis| Windows Appveyor|
 | :---: | :---: |
-|gcc-9, clang-7<br>-std=c++17|MSVC 19.22.27724 x86<br>/std:c++latest|
+|gcc-9, clang-7<br>-std=c++17|MSVC 19.21.27702<br>/std:c++17|
 | [![Build Status](https://travis-ci.org/willwray/ntbs.svg?branch=master)](https://travis-ci.org/willwray/ntbs) | [![Build status](https://ci.appveyor.com/api/projects/status/4eu5cp41i2b2dwsj?svg=true)](https://ci.appveyor.com/project/willwray/ntbs) |

@@ -9,7 +9,6 @@ static_assert( ntbs::cat( ntbs::cat<',',' '>("Hello","world"), '!')
             == "Hello, world!" );
 
 static_assert( ntbs::size('c') == 2 );
-static_assert( ntbs::extent_v<char> == 2 );
 static_assert( *ntbs::data('c') == 'c' );
 
 constexpr char c = 'c';
@@ -17,7 +16,6 @@ static_assert( ntbs::size(c) == 2 );
 static_assert( *ntbs::data(c) == 'c' );
 
 static_assert( ntbs::size("c") == 2 );
-static_assert( ntbs::extent_v<char[2]> == 2 );
 static_assert( ntbs::array{"c"} == ntbs::data("c") );
 
 constexpr auto& c0 = "c";
@@ -34,7 +32,6 @@ static_assert( *ntbs::data(decltype(d0){}) == '\0' );
 constexpr auto const& a0 = ntbs::array{"a"};
 static_assert( std::is_same_v< decltype(a0), ntbs::array<2> const&> );
 static_assert( ntbs::size(a0) == 2 );
-static_assert( ntbs::extent_v<ntbs::array<2>> == 2 );
 static_assert( ntbs::data(a0) == a0 );
 
 // Note that iteration includes null terminator, just as for char[N]

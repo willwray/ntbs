@@ -9,7 +9,6 @@
 #define LTL_NTBS_HPP
 
 #include <cstdint>
-#include <type_traits>
 
 /*
    "ntbs.hpp": Concatenation and slicing of 'constexpr C strings'
@@ -47,12 +46,10 @@
    Non-const values have index access (operator[] returning char&).
 
    Input NTBS args can be char[N] or a generic Char<N> class type.
-   Generic access is via free-function 'data' (const only) and 'size'
-   overloads plus an 'extent' trait also giving the static size:
+   Generic access is via free-function 'data' (const only) and 'size':
 
      data(Char<N>{}) Returns const access to the array begin char & on.
      size(Char<N>{}) Returns array size N, including null terminator.
-     extent<Char<N>> Also gives array size N as an integral_constant.
 
    Char<N> generalizes string-literal and constexpr char[N] NTBS.
 
@@ -78,22 +75,11 @@ namespace ntbs {
 // Generic interface for array type A (for const data access only):
 //  * data(A) function returning 'char const*' or 'char const (&)[N]'
 //  * size(A) function returning array size N
-//  * extent<A> trait for array size N
 
-// extent<T> base trait - specialize for T by deriving from integral_constant.
-//
-template <typename A>
-struct extent;
 
-template <typename A>
-inline constexpr int32_t extent_v{ extent<A>::value };
-
-// char[N] extent, data and size
+// char[N] data and size
 // Free function data(char[N]) and size(char[N]) overloads for char arrays.
 // Override std::size and std::data overloads, from <iterator>, if visible.
-//
-template <int32_t N>
-struct extent<char[N]> : std::integral_constant<int32_t,N> {};
 //
 template <int32_t N>
 constexpr auto const& data(char const(&a)[N]) noexcept { return a; }
@@ -117,9 +103,6 @@ template <int32_t N>
 array(char const(&)[N]) -> array<N>;
 
 template <int32_t N>
-struct extent<array<N>> : std::integral_constant<int32_t,N> {};
-
-template <int32_t N>
 constexpr auto const* begin(array<N> const& a) noexcept { return a.data; }
 
 template <int32_t N>
@@ -136,7 +119,7 @@ constexpr int32_t size(array<N> const&) noexcept { return N; }
 template <int32_t L, typename R>
 constexpr bool operator==(array<L> const& lhs, R const& rhs) noexcept
 {
-    return L == extent_v<R> && [](char const(&l)[L], char const* r) {
+    return L == size(R{}) && [](char const(&l)[L], char const* r) {
         for (int32_t i = 0; i != L; ++i)
             if ( l[i] != r[i] )
                 return false;
@@ -163,7 +146,7 @@ constexpr
 auto
 cut(A const& a)
 {
-    constexpr int32_t N = extent_v<A>;
+    constexpr int32_t N = size(A{});
 #if NTBS_NULL_CHECK
     if constexpr ( sizeof(A) != 1 || N == 1 )
         if ( data(a)[N - 1] != 0 )
@@ -181,12 +164,9 @@ cut(A const& a)
     return chars;
 }
 
-// Single-char extent, data and size
+// Single-char edata and size
 // Free function data(c) and size(c) overloads for char c.
-// Note that extent is 2, as-if a null-terminated char string.
-//
-template <>
-struct extent<char> : std::integral_constant<int32_t,2> {};
+// Note that size is 2, as-if a null-terminated char string.
 //
 constexpr char const* data(char const& c) noexcept { return &c; }
 //
@@ -204,17 +184,17 @@ cat(Cs const&... cs)
 {
 #if NTBS_NULL_CHECK
     ([](char const* dat) {
-        if constexpr ( sizeof(Cs) != 1 || extent_v<Cs> == 1 )
+        if constexpr ( sizeof(Cs) != 1 || size(Cs{}) == 1 )
             if ( dat[sizeof(Cs) - 1] != 0 )
                 throw "ntbs::cut arg not null-terminated";
     }(data(cs)), ...);
 #endif
     constexpr int32_t seps{ sizeof...(sep) };
-    array<((extent_v<Cs> -1 + seps) + ...
+    array<((size(Cs{}) -1 + seps) + ...
                        + (1 - seps))> acc{};
     char* p = acc.data;
     ((p = p == acc.data ? p : (((*p++ = sep), ...), p),
-        p = copy_n(data(cs), extent_v<Cs>-1, p)), ...);
+        p = copy_n(data(cs), size(Cs{})-1, p)), ...);
     return acc;
 }
 
