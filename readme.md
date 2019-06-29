@@ -1,6 +1,6 @@
-# **`ntbs`** : null-terminated byte strings<br>**`cat`** and **`cut`** : concatenate and slice
+# **`ntbs`**: null-terminated byte strings
 
-## Functions for splicing 'constexpr C strings'
+## **`cat`** and **`cut`**: concatenate and slice<br>functions for splicing 'constexpr C strings'
 
 <details><summary>Copyright &copy; 2019 Will Wray. Distributed under the Boost Software License, V1.0</summary>
 
@@ -61,10 +61,14 @@ Also at [boost.org](http://www.boost.org/LICENSE_1_0.txt) and accompanying file 
  int main() { puts( cat<' '>(hello_comma, world_exclaim) ); }
 ```
 
-Outputs "**`Hello, world!`**", spliced back together from the sliced words with punctuation.
+Outputs "**`Hello, world!`**", spliced back together from the sliced words.
 
-Note that `cut` indices are signed.  
-Index -1 is the end index (actually the null-terminator index)  
+Note that `cut` indices `B,E` are **signed** integers specifying range `[B,E)`:
+
+>* Positive values index forward from begin index 0 as usual
+>* Negative values index backward from the end of the char array
+
+Here, -1 serves as end index (actually the null-terminator index for NTBS)  
 so `cut<-7>(hello_world)` is equivalent to `cut<-7,-1>(hello_world)`
 
 Results are returned in a **constexpr C string** type; a `char[N]` array wrapped in a class  
@@ -72,25 +76,28 @@ and understood to contain `N-1` characters followed by a terminating zero charac
 This class acts like a copyable / returnable `char[N]`, call it `Char<N>` (the actual type,  
 `ltl::ntbs::array<N>`, is an implementation detail, not meant for direct use).
 
-Generic access is provided by free-function 'data' and 'size' overloads (found via ADL):
+Generic access is provided by free-function 'size' and 'data' overloads:
 
-* `data(Char<N>{})` returns a `char*` pointing to the array `begin` and
-* `size(Char<N>{})` returns `N`, the array size including null terminator  
+* `size(Char<N>{})` returns `N`, the array size (including null terminator)  
+* `data(a)` returns a `const char*` (or array ref) for the array `begin`  
 
-`Char<N>` has implicit conversion to `const char(&)[N]`, so matches a `const char*`  
-function argument as seen in the "Hello, world!" `puts` call above.
+`Char<N>` has implicit conversion to `const char(&)[N]`, decaying to `const char*`.
+
+`operator==` and `!=` are provided for comparisons, up to full static size  
+including the terminating character and any embedded null characters.
+
+`ntbs::cmp` is a constexpr version of `strcmp` for lexicographic comparison.
 
 ### Design notes
 
-**Constexpr std::string**, as proposed for C++2a, will likely replace many use cases.
-
-C++17 **std::string_view** is a good companion but does not have static size so  
-any constexpr size is lost when passed to a constexpr function.  
-C++2a empowers string_view with more constexpr algorithms.
+**Constexpr std::string**, as proposed for C++2a, will likely replace many use cases.  
+C++2a constexpr string splicing will also benefit from more constexpr algorithms.  
+C++17 **std::string_view** is a good companion but constexpr size is lost in passing  
+to a constexpr function.
 
 * `ntbs` is not intended for run-time so compile-time is the appropriate metric
 * Originally implemented with `index_sequence` then switched to looping  
-(also experimented with Clang 8 constexpr memcpy but saw no benefit).
+(experimented with Clang 8 constexpr builtin memcpy but saw no benefit).
 * Originally held non-null-terminated data, then switched to null termination -  
 having a null terminator is convenient in more use cases.
 * ntbs size is limited by the constexpr loop iteration count limit

@@ -1,6 +1,3 @@
-#include <cassert>
-#include <iostream>
-
 #include "ntbs.hpp"
 
 using namespace ltl;
@@ -8,6 +5,7 @@ using namespace ltl;
 static_assert( ntbs::cat( ntbs::cat<',',' '>("Hello","world"), '!')
             == "Hello, world!" );
 
+// test 'size' and 'data' overloads
 static_assert( ntbs::size('c') == 2 );
 static_assert( *ntbs::data('c') == 'c' );
 
@@ -29,10 +27,10 @@ static_assert( ntbs::data(d0) == d0 );
 static_assert( ntbs::size(decltype(d0){}) == 2 );
 static_assert( *ntbs::data(decltype(d0){}) == '\0' );
 
-constexpr auto const& a0 = ntbs::array{"a"};
-static_assert( std::is_same_v< decltype(a0), ntbs::array<2> const&> );
-static_assert( ntbs::size(a0) == 2 );
-static_assert( ntbs::data(a0) == a0 );
+constexpr auto a0 = ntbs::array{"a"};
+static_assert( sizeof a0 == 2 );
+static_assert( size(a0) == 2 );
+static_assert( data(a0) == a0 );
 
 // Note that iteration includes null terminator, just as for char[N]
 //
@@ -59,91 +57,139 @@ static_assert( test_sized_iterate(ntbs::array{"ho"}) );
 constexpr auto null = ntbs::cat();
 static_assert( null == "" );
 static_assert( null == ntbs::cat(""));
+static_assert( sizeof null == 1 );
 static_assert( size(null) == 1 );
 static_assert( null[0] == 0 );
-static_assert( std::is_same_v< decltype(null), ntbs::array<1> const> );
 
-// test cats producing single-element array
+// test cats producing single null-terminated char
 constexpr auto car = ntbs::cat('c');
 constexpr auto cas = ntbs::cat("c");
+constexpr auto cac = cat(car); // ADL
 static_assert( car == cas );
-static_assert( car == "c" );
+static_assert( car == cac );
+static_assert( sizeof car == 2 );
 static_assert( size(car) == 2 );
-static_assert( std::is_same_v< decltype(car), ntbs::array<2> const> );
 
 // test cat multi-char string-literal and returned array type
 constexpr auto hello = ntbs::cat("hello");
-constexpr auto hollo = ntbs::cat(hello);
+constexpr auto hollo = cat(hello);
 static_assert( hello == "hello" );
 static_assert( hollo == "hello" );
-static_assert( std::is_same_v< decltype(hello), ntbs::array<6> const> );
-static_assert( std::is_same_v< decltype(hollo), ntbs::array<6> const> );
+static_assert( sizeof hello == 6 );
+static_assert( size(hello) == 6 );
 
-// test cut multi-char string-literal and returned array type
+// test null cut
+constexpr auto cul = ntbs::cut("");
+static_assert( cul == ntbs::cut<0>("") );
+static_assert( cul == ntbs::cut<-1>("") );
+static_assert( cul == ntbs::cut<0,0>("") );
+static_assert( cul == ntbs::cut<0,-1>("") );
+static_assert( cul == ntbs::cut<-1,0>("") );
+static_assert( cul == ntbs::cut<-1,-1>("") );
+static_assert( sizeof cul == 1 && cul[0] == 0);
+
+// test cut of single char
+constexpr auto cut1 = ntbs::cut("c");
+static_assert( cut1 == "c" );
+static_assert( cut(cut1) == "c" );
+static_assert( ntbs::cut<0>(cut1) == "c" ); // No ADL with explicit Args
+static_assert( ntbs::cut<-2>(cut1) == "c" );
+static_assert( ntbs::cut<-2,-1>(cut1) == "c" );
+static_assert( sizeof cut1 == 2 );
+static_assert( size(cut1) == 2 );
+
+// test cut of multi-char string-literal
 constexpr auto hullo = ntbs::cut("hello");
-constexpr auto hullu = ntbs::cut(hello);
+constexpr auto hullu = cut(hello);
 static_assert( hullo == "hello" );
 static_assert( hullu == "hello" );
-static_assert( std::is_same_v< decltype(hullo), ntbs::array<6> const> );
-static_assert( std::is_same_v< decltype(hullu), ntbs::array<6> const> );
 
+// test lexicographic cmp
+static_assert( ntbs::cmp("","") == 0 );
+static_assert( ntbs::cmp("","a") < 0 );
+static_assert( ntbs::cmp("a","a") == 0 );
+static_assert( ntbs::cmp("a","aa") < 0 );
+static_assert( ntbs::cmp("aa","a") > 0 );
+static_assert( ntbs::cmp("a\0","a") == 0 ); // Embedded null, cmp equal
+static_assert( ntbs::cat("a\0") != "a" );   // Embedded null, != unequal
+
+// Little cats
+static_assert( ntbs::cat('a','b') == "ab" );
+static_assert( ntbs::cat('a',"b") == "ab" );
+static_assert( ntbs::cat("a",'b') == "ab" );
+static_assert( ntbs::cat("a","b") == "ab" );
+
+// 'Big Cat' for compile time benchmarking
+// (MSVC 19.2 warns that the K64 declaration will use 64K stack
+//  and the K256 big cat fails)
+//
+//constexpr ntbs::array<65536> K64{};
+//constexpr auto K256 = cat(K64, K64, K64, K64); // 1.1s
+//static_assert(size(K256) == 262144 - 3);
+
+/* Runtime tests */
+
+// If ntbs.hpp is compiled with NTBS_NULL_CHECK = 1
+// then null checks are enabled (follows NDEBUG by default)
+// and these tests with non-null terminated arrays should throw
+// yielding a compile error in constexpr evaluation
+// or an exception at runtime.
+//
 auto test_cat_throw = []
 {
-    bool thrown = false;
+    const char* thrown = nullptr;
     using char5 = char[5];
     try {
         ntbs::cat(char5{'t','h','r','o','w'});
     }
-    catch (...)
+    catch (const char* str)
     {
-        thrown = true;
+        thrown = str;
     }
     return thrown;
 };
 
 auto test_cut_throw = []
 {
-    bool thrown = false;
+    const char* thrown = nullptr;
     using char5 = char[5];
     try {
         ntbs::cut(char5{'t','h','r','o','w'});
     }
-    catch (...)
+    catch (const char* str)
     {
-        thrown = true;
+        thrown = str;
     }
     return thrown;
 };
 
+#include <cassert>
+#include <cstdio>
 
 int main()
 {
+    auto cat_threw = test_cat_throw();
+    auto cut_threw = test_cut_throw();
+
+    if (cat_threw) puts(cat_threw);
+    if (cut_threw) puts(cut_threw);
+
     using ntbs::cat;
+    using ntbs::array;
+
+    // cmp of non-null-terminated array fails in constexpr evaluation
+    //static_assert( cmp(array<1>{'!'},array<1>{'!'}) == 0 ); // FAIL
 
     auto mut = cat("Hello");
-    static_assert( sizeof mut == 6);
-    mut[5] = '!';
+    mut[5] = '!'; // write over null terminator
 
 #if NTBS_NULL_CHECK
-    assert( test_cat_throw() );
-    assert( test_cut_throw() );
+    try { cmp(mut,mut); }
+    catch (const char* str) { puts(str); }
+    assert( cat_threw );
+    assert( cut_threw );
 #else
-    assert( ! test_cat_throw() );
-    assert( ! test_cut_throw() );
+    assert( ! cat_threw );
+    assert( ! cut_threw );
 #endif
-    {
-        static_assert( cat('a','b') == "ab" );
-        static_assert( cat('a',"b") == "ab" );
-        static_assert( cat("a",'b') == "ab" );
-        static_assert( cat("a","b") == "ab" );
-    }
-    {
-        // 'Big Cat' for compile timing
-		// (MSVC 19.2 warns that the K64 declaration will use 64K stack
-		//  and the K256 big cat fails)
-
-        //constexpr ntbs::array<65536> K64{};
-        //constexpr auto K256 = cat(K64, K64, K64, K64); // 1.1s
-        //static_assert(size(K256) == 262144 - 3);
-    }
 }

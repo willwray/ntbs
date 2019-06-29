@@ -27,6 +27,11 @@
      cut<B>(ntbs_arg);       // Slice range [B,end), a suffix of ntbs_arg
      cut<B,E>(ntbs_arg);     // Slice range [B,E)   (a prefix if B == 0)
 
+  comparison:
+     operator==(ntbs, ntbs)  // Compare equality up to and incl. terminal
+     operator!=(ntbs, ntbs)  // Compare inequality
+     cmp(ntbs, ntbs) -> int  // Lexicographic comparison, as strcmp
+
    Hello-world example:
 
      #include "ntbs.hpp"
@@ -42,8 +47,8 @@
 
    The return value is of an internal character array class type.
    A const value is usable as a char[N], e.g. as an NTBS argument for
-   C-style char* function parameters (via implicit conversion).
-   Non-const values have index access (operator[] returning char&).
+   C-style const char* function parameters (via implicit conversion).
+   Non-const values have index access operator[] returning char&.
 
    Input NTBS args can be char[N] or a generic Char<N> class type.
    Generic access is via free-function 'data' (const only) and 'size':
@@ -54,7 +59,7 @@
    Char<N> generalizes string-literal and constexpr char[N] NTBS.
 
    'Static size' means that size is encoded in the type.
-   This lib auto-deduces and tracks sizes - that's its raison d'etre.
+   This lib auto-deduces and tracks sizes - c'est sa raison d'etre.
    The proposed C++20 constexpr std::string will replace many uses
    of these 'sized' ntbs utilites with its 'size-erased' container.
 
@@ -64,18 +69,38 @@
 // Follows NDEBUG by default.
 // Set to 0 to disable checks, 1 to enable checks
 //
-#if not defined (NTBS_NULL_CHECK) and not defined (NDEBUG)
-#define NTBS_NULL_CHECK 1
+#if not defined (NTBS_NULL_CHECK)
+#    if not defined (NDEBUG)
+#        define NTBS_NULL_CHECK 1
+#    else
+#        define NTBS_NULL_CHECK 0
+#    endif
 #endif
 
 namespace ltl {
 
 namespace ntbs {
 
+// copy_n; C++17 constexpr version of std::copy_n, char-specific.
+//
+inline constexpr char* copy_n(char const* src, int32_t sz, char* dest)
+{
+    for (int i = 0; i != sz; ++i)
+        dest[i] = src[i];
+    return dest + sz;
+}
+
+template <int32_t N>
+constexpr bool equal(char const* l, char const* r) {
+    for (int32_t i = 0; i != N; ++i)
+        if ( l[i] != r[i] )
+            return false;
+    return true;
+}
+
 // Generic interface for array type A (for const data access only):
 //  * data(A) function returning 'char const*' or 'char const (&)[N]'
 //  * size(A) function returning array size N
-
 
 // char[N] data and size
 // Free function data(char[N]) and size(char[N]) overloads for char arrays.
@@ -114,29 +139,51 @@ constexpr auto const& data(array<N> const& a) noexcept { return a.data; }
 template <int32_t N>
 constexpr int32_t size(array<N> const&) noexcept { return N; }
 
-// constexpr array == ntbs comparison operator, asymmetric (array lhs).
+// ntbs::operator==(L,R) requires L,R are CharArray types Char<Nl>,Char<Nr>.
+// No null check; for equal arrays, compares all N characters inlcuding the
+// terminating char at index [N -1].
 //
-template <int32_t L, typename R>
-constexpr bool operator==(array<L> const& lhs, R const& rhs) noexcept
+template <typename L, typename R>
+constexpr bool operator==(L const& lhs, R const& rhs) noexcept
 {
-    return L == size(R{}) && [](char const(&l)[L], char const* r) {
-        for (int32_t i = 0; i != L; ++i)
-            if ( l[i] != r[i] )
+    if constexpr( constexpr int32_t N{size(L{})}; N  == size(R{}) )
+    {
+        for (int32_t i = 0; i != N; ++i)
+            if ( data(lhs)[i] != data(rhs)[i] )
                 return false;
         return true;
-    }(lhs.data, data(rhs));
+    }
+    else
+        return false;
 }
 
-// copy_n; C++17 constexpr version of std::copy_n, char-specific.
+// ntbs::operator!=(L,R) requires L,R are CharArray types.
 //
-constexpr char* copy_n(char const* src, int32_t sz, char* dest)
-{
-    for (int i = 0; i != sz; ++i)
-        dest[i] = src[i];
-    return dest + sz;
+template <typename L, typename R>
+constexpr bool operator!=(L const& lhs, R const& rhs) noexcept {
+    return !(lhs == rhs);
 }
 
-// cut<B,E>(char[N]) Returns sub-array [B,E) of char array arg.
+// ntbs::cmp(L,R) requires L,R are CharArray types.
+// Lexicographic compare, constexpr version of strcmp
+// (UB in non-constexpr call with non-null-terminated data and no null check).
+//
+template <typename L, typename R>
+constexpr int32_t cmp(L const& lhs, R const& rhs) noexcept(!NTBS_NULL_CHECK)
+{
+#if NTBS_NULL_CHECK
+    if ( data(lhs)[size(L{}) - 1] != 0
+      || data(rhs)[size(R{}) - 1] != 0 )
+        throw "ntbs::cmp arg not null-terminated";
+#endif
+    int32_t i = 0;
+    while ( data(lhs)[i] != 0 && data(lhs)[i] == data(rhs)[i] )
+        ++i;
+    return static_cast<unsigned char>(data(lhs)[i])
+         - static_cast<unsigned char>(data(rhs)[i]);
+}
+
+// cut<B,E>(Char<N>) Returns sub-array [B,E) of char array arg.
 // The result is returned as ntbs::array<M> type with zero terminator.
 // The [B,E) indices are signed integers (c.f. Python slice indexing).
 // The input char array argument is assumed to be zero terminated.
@@ -144,13 +191,12 @@ constexpr char* copy_n(char const* src, int32_t sz, char* dest)
 template <int32_t B = 0, int32_t E = -1, typename A>
 constexpr
 auto
-cut(A const& a)
+cut(A const& a) noexcept(!NTBS_NULL_CHECK)
 {
     constexpr int32_t N = size(A{});
 #if NTBS_NULL_CHECK
-    if constexpr ( sizeof(A) != 1 || N == 1 )
-        if ( data(a)[N - 1] != 0 )
-            throw "ntbs::cut arg not null-terminated";
+    if ( data(a)[N - 1] != 0 )
+        throw "ntbs::cut arg not null-terminated";
 #endif
     constexpr auto ind = [](int32_t i, int32_t N) -> int32_t {
         return i < 0 ? N + i : i;
@@ -164,29 +210,30 @@ cut(A const& a)
     return chars;
 }
 
-// Single-char edata and size
+// Single-char data and size.
 // Free function data(c) and size(c) overloads for char c.
 // Note that size is 2, as-if a null-terminated char string.
+// Declared here to allow char args in cat.
 //
 constexpr char const* data(char const& c) noexcept { return &c; }
 //
 constexpr int32_t size(char const&) noexcept { return 2; }
 
 // cat(cs...) Concatenate input character sequences, char or ntbs, or
-// join the inputs using variadic char template args act as separator.
+// join the inputs using variadic char template args as separator.
 // Return in an ntbs::array<M> type with zero terminator.
 //
 template <char... sep,
       typename... Cs>
 constexpr
 auto
-cat(Cs const&... cs)
+cat(Cs const&... cs) noexcept(!NTBS_NULL_CHECK)
 {
 #if NTBS_NULL_CHECK
     ([](char const* dat) {
         if constexpr ( sizeof(Cs) != 1 || size(Cs{}) == 1 )
             if ( dat[sizeof(Cs) - 1] != 0 )
-                throw "ntbs::cut arg not null-terminated";
+                throw "ntbs::cat arg not null-terminated";
     }(data(cs)), ...);
 #endif
     constexpr int32_t seps{ sizeof...(sep) };
