@@ -38,7 +38,8 @@ Also at [boost.org](http://www.boost.org/LICENSE_1_0.txt) and accompanying file 
 
 ----
 
-> Requires C++17. Targets recent GCC, Clang, MSVC. Namespace `ltl::ntbs`
+> C++17. Targets GCC and Clang -std=c++17, MSVC  /std:c++17  
+Namespace `ltl::ntbs`
 
 ### Hello-world example: **`cat`**
 

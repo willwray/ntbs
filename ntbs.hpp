@@ -83,7 +83,7 @@ namespace ntbs {
 
 // copy_n; C++17 constexpr version of std::copy_n, char-specific.
 //
-inline constexpr char* copy_n(char const* src, int32_t sz, char* dest)
+constexpr char* copy_n(char const* src, int32_t sz, char* dest)
 {
     for (int i = 0; i != sz; ++i)
         dest[i] = src[i];
