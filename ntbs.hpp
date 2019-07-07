@@ -239,8 +239,8 @@ cat(Cs const&... cs) noexcept(!NTBS_NULL_CHECK)
     constexpr int32_t seps{ sizeof...(sep) };
     array<((size(Cs{}) -1 + seps) + ...
                        + (1 - seps))> acc{};
-    char* p = acc.data;
-    ((p = p == acc.data ? p : (((*p++ = sep), ...), p),
+    char* p = nullptr;
+    ((p = p == nullptr ? acc.data : (((*p++ = sep), ...), p),
         p = copy_n(data(cs), size(Cs{})-1, p)), ...);
     return acc;
 }
